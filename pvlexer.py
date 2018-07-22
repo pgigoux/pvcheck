@@ -1,4 +1,5 @@
 import re
+from pvtoken import PvToken
 
 # Token definitions
 TOKEN_NONE = 0
@@ -29,17 +30,7 @@ TOKEN_LEFT_BRACKET = 42
 TOKEN_RIGHT_BRACKET = 43
 
 
-class Token:
-
-    def __init__(self, token_id, token_value):
-        self.id = token_id
-        self.value = token_value
-
-    def __str__(self):
-        return 'Token(' + str(self.id) + ',' + str(self.value) + ')'
-
-
-class Lexer:
+class PvLexer:
 
     # Lexer regular expressions. The order matters!
     # In general, regular expressions are ordered with the most complex ones first.
@@ -108,7 +99,7 @@ class Lexer:
                 if m:
                     # print '+ [' + m.group() + '] ' + str(t_id)
                     if t_id != TOKEN_WHITESPACE:  # ignore white spaces
-                        token_list.append(Token(t_id, m.group(0)))
+                        token_list.append(PvToken(t_id, m.group(0)))
                     break
 
             # Check whether a match is found and move the character counter
@@ -158,7 +149,7 @@ class Lexer:
 
 
 if __name__ == '__main__':
-    lex = Lexer()
+    lex = PvLexer()
 
     with open('example.pv') as f:
         for t in lex.next_token(f):
