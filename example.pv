@@ -1,0 +1,35 @@
+#
+# Initialisation of system parameters by pvload.
+#
+
+group {
+  string $(top)hwmanlut.F       = "ag_hw.lut";
+  string $(top)aomanlut.F       = "ag_ao.lut";
+  string $(top)sfmanlut.F       = "ag_sf.lut";
+
+  string $(top)PA3AOmanlut.F    = "ag_PA3AO.lut";
+  string $(top)RT2manlut.F      = "ag_RT2.lut";
+  string $(top)Tiltmanlut.F     = "ag_Tilt.lut";
+  string $(top)Lin2manlut.F     = "ag_Lin2.lut";
+  string $(top)Lin2manlut.G     = "ag_Lin2.lut";
+}
+
+double $(top)cc:cpuScanPeriod    = 5.0 ;   # Estimate CPU load every 5 secs
+double $(top)cc:memoryScanPeriod = 10.0 ;  # Estimate memory usage every 10 secs
+double $(top)cc:fdScanPeriod     = 10.0 ;  # Estimate FD usage every 10 secs
+
+string $(sadtop)cc:state.VAL  = "INITIALISING";
+string $(sadtop)cc:health.VAL = "GOOD";
+string $(sadtop)cc:name.VAL   = "GBD";
+string $(sadtop)cc:error.VAL  = " This is an error ";
+
+long   $(top)torque.M = 1;
+long   $(top)torque.N = 0;
+
+double arr1.VAL[3] = { 0.1, 0.2, 0.3 };
+
+double arr2[2] = {
+		    [0] 4.5e8,
+		    [1] 6.8e9
+		};
+
