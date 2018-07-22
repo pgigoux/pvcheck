@@ -40,7 +40,9 @@ class Token:
 
 
 class Lexer:
-    # The order matters
+
+    # Lexer regular expressions. The order matters!
+    # In general, regular expressions are ordered with the most complex ones first.
     lexer_patterns = [
         (r'[\s]+', TOKEN_WHITESPACE),
         (r'-?0[xX][\da-fA-F]+', TOKEN_INTEGER),
@@ -69,13 +71,14 @@ class Lexer:
     ]
 
     def __init__(self):
+        """
+        Initialize a lex object.
+        Compile all the lexer regular expressions for speed.
+        """
         self.line_number = 0
         self.compiled_patterns = []
         for pattern, token_id in self.lexer_patterns:
             self.compiled_patterns.append((re.compile(pattern), token_id))
-
-    def get_line_number(self):
-        return self.line_number
 
     def _get_token_list(self, line):
         """
@@ -122,9 +125,19 @@ class Lexer:
 
         return token_list
 
+    def get_line_number(self):
+        """
+        Return the current line number.
+        Useful when reporting error messages.
+        :return: line number
+        :rtype: int
+        """
+        return self.line_number
+
     def next_token(self, f_in):
         """
         Return next token in the file.
+        This is the main routine that will be called by the parser.
         :param f_in: input file
         :type f_in: file
         :return: list
