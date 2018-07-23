@@ -10,7 +10,6 @@ TOKEN_INTEGER = 10
 TOKEN_REAL = 11
 TOKEN_STRING = 12
 TOKEN_PVNAME = 13
-TOKEN_ARRAY = 14
 # reserved words
 TOKEN_TYPE = 20
 TOKEN_UNIT = 21
@@ -28,6 +27,8 @@ TOKEN_LEFT_BRACE = 40
 TOKEN_RIGHT_BRACE = 41
 TOKEN_LEFT_BRACKET = 42
 TOKEN_RIGHT_BRACKET = 43
+# used to flag unknown tokens
+TOKEN_ERROR = -1
 
 
 class PvLexer:
@@ -66,6 +67,7 @@ class PvLexer:
         Initialize a lex object.
         Compile all the lexer regular expressions for speed.
         """
+        self.last_line = ''
         self.line_number = 0
         self.compiled_patterns = []
         for pattern, token_id in self.lexer_patterns:
@@ -111,19 +113,22 @@ class PvLexer:
                 else:
                     break  # skip the rest of the line after a comment
             else:
-                print 'error'
+                token_list.append(PvToken(TOKEN_ERROR, m.group()))
                 break
 
         return token_list
 
-    def get_line_number(self):
-        """
-        Return the current line number.
-        Useful when reporting error messages.
-        :return: line number
-        :rtype: int
-        """
-        return self.line_number
+    # def get_line_number(self):
+    #     """
+    #     Return the current line number.
+    #     Useful when reporting error messages.
+    #     :return: line number
+    #     :rtype: int
+    #     """
+    #     return self.line_number
+
+    def get_last_line(self):
+        return self.line_number, self.last_line
 
     def next_token(self, f_in):
         """
@@ -131,8 +136,8 @@ class PvLexer:
         This is the main routine that will be called by the parser.
         :param f_in: input file
         :type f_in: file
-        :return: list
-        :rtype: list
+        :return: next token
+        :rtype: PvToken
         """
         for line in f_in:
 
@@ -141,8 +146,9 @@ class PvLexer:
 
             # Ignore comment and blank lines
             if re.search(r'^#', line) or len(line) == 0:
-                # print 'ignored', line
                 continue
+
+            self.last_line = line
 
             for token in self._get_token_list(line):
                 yield token

@@ -1,5 +1,3 @@
-
-
 class PvToken:
 
     def __init__(self, token_id, token_value):
@@ -15,17 +13,31 @@ class PvToken:
     def __str__(self):
         return 'Token(' + str(self.id) + ',' + str(self.value) + ')'
 
-    def __eq__(self, token):
+    # def __eq__(self, token):
+    #     """
+    #     Check whether two tokens are of the same type (id)
+    #     :param token: token
+    #     :type token: PvToken
+    #     :rtype: bool
+    #     """
+    #     return True if self.id == token.id else False
+
+    def get(self):
         """
-        Check whether two tokens are of the same type (id)
-        :param token: token
-        :type token: PvToken
-        :return:
+        Return the token id and value
+        :return: token id and value
+        :rtype: tuple
         """
-        if self.id == token.id:
-            return True
-        else:
-            return False
+        return self.id, self.value
+
+    def match(self, token_id):
+        """
+        Check whether a token has a certain id
+        :param token_id: token id
+        :type token_id: int
+        :rtype: bool
+        """
+        return True if self.id == token_id else False
 
 
 if __name__ == '__main__':
@@ -34,4 +46,5 @@ if __name__ == '__main__':
     t3 = PvToken(1, "hello")
     print t1 == t2
     print t1 == t3
-
+    print t2.match(2)
+    print t2.match(4)
