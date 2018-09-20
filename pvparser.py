@@ -4,7 +4,7 @@ import argparse
 from pvtoken import PvToken
 from pvlexer import PvLexer
 
-from pvlexer import TOKEN_NONE
+from pvlexer import TOKEN_NONE, TOKEN_EOF
 from pvlexer import TOKEN_INTEGER, TOKEN_REAL, TOKEN_STRING, TOKEN_PVNAME
 from pvlexer import TOKEN_TYPE, TOKEN_UNIT, TOKEN_GROUP, TOKEN_SLEEP
 from pvlexer import TOKEN_SEMICOLON, TOKEN_COMMA
@@ -23,34 +23,60 @@ class PvParser:
         self.file_name = ''
         self.lex = PvLexer()
         self.token = None
-        self.flush_token()
+        self.flush_token()  # overwrites self.token with TOKEN_NONE
 
-    def pv_error(self):
+    def pv_error(self, text=''):
         """
         :raises: PvSyntaxError
         """
-        format_string = 'Syntax error at "{1}"\nIn file {2} at line {3}:\n>> {4}\n'
+        # format_string = 'Syntax error at {0}\nIn file {1} at line {2}:\n>> {3}\n'
+        if text:
+            format_string = 'Syntax error at {0}, {1}\nIn file {2} at line {3}:\n>> {4}\n'
+        else:
+            format_string = 'Syntax error at {0}{1}\nIn file {2} at line {3}:\n>> {4}\n'
         line_number, line_text = self.lex.get_last_line()
         dummy, token_value = self.token.get()
-        message = format_string.format(token_value, self.file_name, line_number, line_text)
+        message = format_string.format(token_value, text, self.file_name, line_number, line_text)
         raise self.PvSyntaxError(message)
+
+    def trace(self, text):
+        print '> ' + text, self.token
+
+    # def get_token(self):
+    #     """
+    #     This routine is a front end to the lexer next_token() function.
+    #     It simulates a push back functionality when the token is not consumed.
+    #     Lexer errors (i.e. unknown tokens) are trapped at this point.
+    #     :return: next token
+    #     :rtype: PvToken
+    #     """
+    #     if self.token.match(TOKEN_NONE):
+    #         self.token = self.lex.next_token(self.f_in)
+    #         # trap lexer errors
+    #         if self.token.match(TOKEN_ERROR):
+    #             self.pv_error()
+    #     return self.token
 
     def get_token(self):
         """
         This routine is a front end to the lexer next_token() function.
-        It simulates a pushback functionality when the token is not consumed.
-        Lexer errors (unknown tokens) are trapped at this point.
+        It simulates a push back functionality when the token is not consumed.
+        Lexer errors (i.e. unknown tokens) are trapped at this point.
         :return: next token
         :rtype: PvToken
         """
         if self.token.match(TOKEN_NONE):
+            # for self.token in self.lex.next_token(self.f_in):
+            #     break
             self.token = self.lex.next_token(self.f_in)
             # trap lexer errors
             if self.token.match(TOKEN_ERROR):
                 self.pv_error()
+        self.trace('+ ' + str(self.token))
         return self.token
 
     def flush_token(self):
+        self.trace('flush_token')
         self.token = PvToken(TOKEN_NONE, 'none')
 
     def flush_and_get_token(self):
@@ -59,11 +85,14 @@ class PvParser:
         :return: next token
         :rtype: PvToken
         """
+        self.trace('flush_and_get_token')
         self.flush_token()
         return self.get_token()
-    
+
     # --------------------------------------------------------
     # The recursive parser routines start here
+    # --------------------------------------------------------
+
     # --------------------------------------------------------
     # - File
     # --------------------------------------------------------
@@ -75,7 +104,7 @@ class PvParser:
         file
             : file item
             | item
-            |/* empty */
+            | /* empty */
             ;
         ---
         :param input_file_name: input file name
@@ -83,6 +112,7 @@ class PvParser:
         :return: file found?
         :rtype: bool
         """
+        self.trace('pv_file')
         try:
             self.f_in = open(input_file_name, 'r')
             self.file_name = input_file_name
@@ -92,8 +122,8 @@ class PvParser:
         try:
             while self.pv_item():
                 pass
-        except self.PvSyntaxError:
-            pass
+        except self.PvSyntaxError as e:
+            print e
 
         self.f_in.close()
         self.f_in = None
@@ -105,7 +135,7 @@ class PvParser:
     # - Item
     # --------------------------------------------------------
 
-    def pv_item(self):        
+    def pv_item(self):
         """
         An item is either a group, a single item or a sleep declaration
         ---
@@ -116,14 +146,19 @@ class PvParser:
             ;
         ---
         :return:
+        :rtype: bool
         """
-        # TODO handle end of tokens
+        self.trace('pv_item')
         if self.pv_group():
-            pass
+            return True
         elif self.pv_sleep():
-            pass
+            return True
+        elif self.pv_single():
+            return True
+        elif self.get_token().match(TOKEN_EOF):
+            return False  # end of items
         else:
-            self.pv_single()
+            self.pv_error()
 
     # --------------------------------------------------------
     # - Group
@@ -140,6 +175,7 @@ class PvParser:
         :return:
         :rtype: bool
         """
+        self.trace('pv_group')
         if self.pv_group_head():
             if self.get_token().match(TOKEN_LEFT_BRACE):
                 self.flush_token()
@@ -164,6 +200,7 @@ class PvParser:
         ---
         :return: true if start of group found, false otherwise
         """
+        self.trace('pv_group_head')
         if self.get_token().match(TOKEN_GROUP):
             self.flush_token()
             return True
@@ -183,6 +220,7 @@ class PvParser:
         ---
         :return:
         """
+        self.trace('pv_group_body')
         while self.pv_single():
             pass
         return True
@@ -198,6 +236,7 @@ class PvParser:
         ---
         :return:
         """
+        self.trace('pv_group_tail')
         if self.get_token().match(TOKEN_SEMICOLON):
             self.flush_token()
 
@@ -220,6 +259,7 @@ class PvParser:
         :rtype: bool
         :raises: PvSyntaxError
         """
+        self.trace('pv_sleep')
         if self.get_token().match(TOKEN_SLEEP):
             token = self.flush_and_get_token()
             if token.match(TOKEN_INTEGER) or token.match(TOKEN_REAL):
@@ -246,7 +286,17 @@ class PvParser:
         ---
         :return:
         """
-        pass
+        self.trace('pv_single')
+        # return self.pv_single_head() and self.pv_single_equals() and self.pv_single_body()
+        if self.pv_single_head():
+            if self.pv_single_equals():
+                if self.pv_single_body():
+                    if self.get_token().match(TOKEN_SEMICOLON):
+                        self.flush_token()
+                        return True
+                    else:
+                        self.pv_error()
+        return False
 
     # --------------------------------------------------------
     # - Single head
@@ -265,6 +315,7 @@ class PvParser:
         :rtype: bool
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_head')
         return self.pv_single_start() and self.pv_single_type() and self.pv_single_name() and self.pv_single_count()
 
     def pv_single_start(self):
@@ -276,9 +327,10 @@ class PvParser:
             | TOKEN_PERCENT
             ;
         ---
-        :return: always true
+        :return: always true; percent is optional
         :rtype: bool
         """
+        self.trace('pv_single_start')
         if self.get_token().match(TOKEN_PERCENT):
             self.flush_token()
         return True
@@ -292,9 +344,10 @@ class PvParser:
             |	/* empty */
             ;
         ---
-        :return: always true
+        :return: always true; type optional
         :rtype: bool
         """
+        self.trace('pv_single_type')
         if self.get_token().match(TOKEN_TYPE):
             self.flush_token()
         return True
@@ -310,10 +363,17 @@ class PvParser:
         :return: true if name detected
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_name')
+        # if self.get_token().match(TOKEN_PVNAME):
+        #     self.flush_token()
+        #     return True
+        # else:
+        #     self.pv_error()
         if self.get_token().match(TOKEN_PVNAME):
+            self.flush_token()
             return True
         else:
-            self.pv_error()
+            return False
 
     def pv_single_count(self):
         """
@@ -327,6 +387,7 @@ class PvParser:
         :return: true if count detected, false otherwise
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_count')
         return self.pv_single_index_or_count()
 
     # --------------------------------------------------------
@@ -343,10 +404,12 @@ class PvParser:
         :return: true if equals detected
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_equals')
         if self.get_token().match(TOKEN_EQUALS):
+            self.flush_token()
             return True
         else:
-            self.pv_error()
+            self.pv_error('\'=\' expected')
 
     # --------------------------------------------------------
     # - Single body
@@ -358,16 +421,17 @@ class PvParser:
         The single body specifies the value to be assigned
         The implementation here deviates from the original BNF in that it does not
         allow a list of values if it's not enclosed in braces.
-        Note: single_bodyn in the original BNF was renamed as single_body_value_list
+        Note: single_bodyn in the original BNF was renamed as single_value_list
         ---
         single_body
             : single_individual_value
-            | single_body_value_list  <- NOT ALLOWED IN THIS IMPLEMENTATION!!
+            | single_value_list  <- NOT ALLOWED IN THIS IMPLEMENTATION!!
             | TOKEN_LEFT_BRACE single_body_value_list TOKEN_RIGHT_BRACE
             ;
         ---
         :return:
         """
+        self.trace('pv_single_body')
         if self.get_token().match(TOKEN_LEFT_BRACE):
             self.flush_token()
             self.pv_single_value_list()
@@ -390,6 +454,7 @@ class PvParser:
             ;
         ---
         """
+        self.trace('pv_single_value_list')
         self.pv_single_individual_value()
         while True:
             if self.get_token().match(TOKEN_COMMA):
@@ -414,6 +479,7 @@ class PvParser:
         :rtype: bool
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_individual_value')
         return self.pv_single_index() and self.pv_single_value() and self.pv_single_scale()
 
     def pv_single_index(self):
@@ -424,9 +490,10 @@ class PvParser:
             | /* empty */
             ;
         ---
-        :return: true if index detected, false otherwise
+        :return: always true; index optional
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_index')
         return self.pv_single_index_or_count()
 
     def pv_single_value(self):
@@ -443,6 +510,7 @@ class PvParser:
         :rtype: bool
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_value')
         token = self.get_token()
         if token.is_in([TOKEN_INTEGER, TOKEN_REAL, TOKEN_STRING]):
             self.flush_token()
@@ -473,31 +541,31 @@ class PvParser:
             | /* empty */
             ;
         ---
-        :return: true if scale factor found, false otherwise
+        :return: always true; scale optional
         :rtype: bool
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_scale')
         if self.get_token().match(TOKEN_TIMES):
             token = self.flush_and_get_token()
             if token in [TOKEN_INTEGER, TOKEN_REAL]:
                 self.flush_token()
-                return True
+                # return True
             else:
                 self.pv_error()
         elif self.get_token().match(TOKEN_DIVIDED):
             token = self.flush_and_get_token()
             if token in [TOKEN_INTEGER, TOKEN_REAL, TOKEN_UNIT]:
                 self.flush_token()
-                return True
+                # return True
             else:
                 self.pv_error()
         else:
             token = self.get_token()
             if token in [TOKEN_INTEGER, TOKEN_REAL, TOKEN_UNIT]:
                 self.flush_token()
-                return True
-            else:
-                return False
+                # return True
+        return True
 
     def pv_single_index_or_count(self):
         """
@@ -508,23 +576,34 @@ class PvParser:
             | /* empty */
             ;
         ---
-        :return: true if '[<integer>]' detected, false otherwise
+        :return: always true; index or count optional
         :raises: PvSyntaxError
         """
+        self.trace('pv_single_index_or_count')
         if self.get_token().match(TOKEN_LEFT_BRACKET):
             if self.flush_and_get_token().match(TOKEN_INTEGER):
                 if self.flush_and_get_token().match(TOKEN_RIGHT_BRACKET):
-                    return True
+                    return True  # index found
                 else:
                     self.pv_error()
             else:
                 self.pv_error()
-        return False
+        return True  # index not found, ok anyway
 
 
 if __name__ == '__main__':
 
-    file_list = ['example.pv']
+    # lex = PvLexer()
+    # parser = PvParser()
+    # with open('example2.pv') as f:
+    #     while True:
+    #         t = lex.next_token(f)
+    #         print t
+    #         if t.match(TOKEN_EOF):
+    #             break
+    # exit(0)
+
+    file_list = ['example2.pv']
 
     parser = PvParser()
 
