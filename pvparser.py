@@ -42,21 +42,6 @@ class PvParser:
     def trace(self, text):
         print '> ' + text, self.token
 
-    # def get_token(self):
-    #     """
-    #     This routine is a front end to the lexer next_token() function.
-    #     It simulates a push back functionality when the token is not consumed.
-    #     Lexer errors (i.e. unknown tokens) are trapped at this point.
-    #     :return: next token
-    #     :rtype: PvToken
-    #     """
-    #     if self.token.match(TOKEN_NONE):
-    #         self.token = self.lex.next_token(self.f_in)
-    #         # trap lexer errors
-    #         if self.token.match(TOKEN_ERROR):
-    #             self.pv_error()
-    #     return self.token
-
     def get_token(self):
         """
         This routine is a front end to the lexer next_token() function.
@@ -66,8 +51,6 @@ class PvParser:
         :rtype: PvToken
         """
         if self.token.match(TOKEN_NONE):
-            # for self.token in self.lex.next_token(self.f_in):
-            #     break
             self.token = self.lex.next_token(self.f_in)
             # trap lexer errors
             if self.token.match(TOKEN_ERROR):
@@ -166,7 +149,6 @@ class PvParser:
 
     def pv_group(self):
         """
-        # TODO braces, etc
         A group is a grouped list of single items
         ---
         group: group_head TOKEN_LEFT_BRACE group_body TOKEN_RIGHT_BRACE group_tail
@@ -278,7 +260,6 @@ class PvParser:
 
     def pv_single(self):
         """
-        # TODO
         A single item is a C like declaration and assignment
         ---
         single
@@ -287,7 +268,6 @@ class PvParser:
         :return:
         """
         self.trace('pv_single')
-        # return self.pv_single_head() and self.pv_single_equals() and self.pv_single_body()
         if self.pv_single_head():
             if self.pv_single_equals():
                 if self.pv_single_body():
@@ -364,11 +344,6 @@ class PvParser:
         :raises: PvSyntaxError
         """
         self.trace('pv_single_name')
-        # if self.get_token().match(TOKEN_PVNAME):
-        #     self.flush_token()
-        #     return True
-        # else:
-        #     self.pv_error()
         if self.get_token().match(TOKEN_PVNAME):
             self.flush_token()
             return True
@@ -417,7 +392,6 @@ class PvParser:
 
     def pv_single_body(self):
         """
-        TODO
         The single body specifies the value to be assigned
         The implementation here deviates from the original BNF in that it does not
         allow a list of values if it's not enclosed in braces.
@@ -468,7 +442,6 @@ class PvParser:
 
     def pv_single_individual_value(self):
         """
-        TODO: not sure about this
 
         ---
         single_individual_value
@@ -550,21 +523,18 @@ class PvParser:
             token = self.flush_and_get_token()
             if token in [TOKEN_INTEGER, TOKEN_REAL]:
                 self.flush_token()
-                # return True
             else:
                 self.pv_error()
         elif self.get_token().match(TOKEN_DIVIDED):
             token = self.flush_and_get_token()
             if token in [TOKEN_INTEGER, TOKEN_REAL, TOKEN_UNIT]:
                 self.flush_token()
-                # return True
             else:
                 self.pv_error()
         else:
             token = self.get_token()
             if token in [TOKEN_INTEGER, TOKEN_REAL, TOKEN_UNIT]:
                 self.flush_token()
-                # return True
         return True
 
     def pv_single_index_or_count(self):
@@ -592,16 +562,6 @@ class PvParser:
 
 
 if __name__ == '__main__':
-
-    # lex = PvLexer()
-    # parser = PvParser()
-    # with open('example2.pv') as f:
-    #     while True:
-    #         t = lex.next_token(f)
-    #         print t
-    #         if t.match(TOKEN_EOF):
-    #             break
-    # exit(0)
 
     file_list = ['example2.pv']
 

@@ -123,40 +123,8 @@ class PvLexer:
         # print '-', token_list
         return token_list
 
-    # def get_line_number(self):
-    #     """
-    #     Return the current line number.
-    #     Useful when reporting error messages.
-    #     :return: line number
-    #     :rtype: int
-    #     """
-    #     return self.line_number
-
     def get_last_line(self):
         return self.line_number, self.last_line
-
-    # def next_token(self, f_in):
-    #     """
-    #     Return next token in the file.
-    #     This is the main routine that will be called by the parser.
-    #     :param f_in: input file
-    #     :type f_in: file
-    #     :return: next token
-    #     :rtype:
-    #     """
-    #     for line in f_in:
-    #
-    #         line = line.strip()
-    #         self.line_number += 1
-    #
-    #         # Ignore comment and blank lines
-    #         if re.search(r'^#', line) or len(line) == 0:
-    #             continue
-    #
-    #         self.last_line = line
-    #
-    #         for token in self._get_token_list(line):
-    #             yield token
 
     def next_token(self, f_in):
         """
