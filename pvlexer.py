@@ -7,10 +7,11 @@ TOKEN_EOF = 1
 TOKEN_WHITESPACE = 2
 TOKEN_COMMENT = 3
 # patterns
-TOKEN_INTEGER = 10
-TOKEN_REAL = 11
-TOKEN_STRING = 12
-TOKEN_PVNAME = 13
+TOKEN_NUMBER = 10
+TOKEN_INTEGER = 11
+TOKEN_FLOAT = 12
+TOKEN_STRING = 13
+TOKEN_PVNAME = 14
 # reserved words
 TOKEN_TYPE = 20
 TOKEN_UNIT = 21
@@ -38,8 +39,9 @@ class PvLexer:
     lexer_patterns = [
         (r'[\s]+', TOKEN_WHITESPACE),
         (r'-?0[xX][\da-fA-F]+', TOKEN_INTEGER),
-        (r'[-+]?(\d+([.,]\d*)?|[.,]\d+)([eE][-+]?\d+)?', TOKEN_REAL),
-        (r'-?\d+', TOKEN_INTEGER),
+        (r'[-+]?(\d+([.,]\d*)?|[.,]\d+)([eE][-+]?\d+)?', TOKEN_NUMBER),
+        # (r'[-+]?(\d+([.,]\d*)?|[.,]\d+)([eE][-+]?\d+)?', TOKEN_REAL),
+        # (r'-?\d+', TOKEN_INTEGER),
         (r'".+"', TOKEN_STRING),
         (r'string|int|short|float|enum|char|long|double', TOKEN_TYPE),
         (r'arcsec|deg', TOKEN_UNIT),
@@ -48,7 +50,7 @@ class PvLexer:
         (r'meters|metres|m', TOKEN_UNIT),
         (r'group', TOKEN_GROUP),
         (r'sleep', TOKEN_SLEEP),
-        (r'[\w:\(\)\$]+(.[\w]+)?', TOKEN_PVNAME),
+        (r'[\w:\(\)\$]+(\.[\w]+)?', TOKEN_PVNAME),
         (r'#', TOKEN_COMMENT),
         (r';', TOKEN_SEMICOLON),
         (r'=', TOKEN_EQUALS),
@@ -99,12 +101,20 @@ class PvLexer:
             # Loop over all the possible patterns looking for a match.
             # Break the loop if one is found and proceed to the next step.
             # Comments and whitespaces are ignored at this point.
+            # In the case of number contants, the type is reassigned to make
+            # the distincton between an integer and a real.
             for t_pat, t_id in self.compiled_patterns:
                 # print str(line_pos) + ': [' + str(line[line_pos:]) + ']'
                 m = t_pat.match(line, line_pos)
                 if m:
                     # print '+ [' + m.group() + '] ' + str(t_id)
                     if t_id != TOKEN_WHITESPACE and t_id != TOKEN_COMMENT:
+                        if t_id == TOKEN_NUMBER:
+                            try:
+                                int(m.group(0))
+                                t_id = TOKEN_INTEGER
+                            except ValueError:
+                                t_id = TOKEN_FLOAT
                         token_list.append(PvToken(t_id, m.group(0)))
                     break
 
@@ -159,7 +169,7 @@ if __name__ == '__main__':
 
     lex = PvLexer()
 
-    with open('example1.pv') as f:
+    with open('example2.pv') as f:
         while True:
             t = lex.next_token(f)
             print t
