@@ -19,6 +19,7 @@ TYPE_INTEGER = 1
 TYPE_FLOAT = 2
 TYPE_STRING = 3
 
+DEBUG_CODE = False
 
 def map_type(token):
     """
@@ -48,36 +49,53 @@ class SingleValue:
         self.count = 0
         self.value_list = []
         self.index_list = []
-        self.type_map = {TYPE_NONE: 'none', TYPE_INTEGER: 'int', TYPE_FLOAT: 'float', TYPE_STRING : 'string'}
+        self.type_map = {TYPE_NONE: 'none', TYPE_INTEGER: 'int', TYPE_FLOAT: 'float', TYPE_STRING: 'string'}
 
     def __str__(self):
         return '------> ' + self.type_map[self.data_type] + ' [' + str(self.name) + '] ' + \
                str(self.count) + ' ' + str(self.index_list) + ' ' + str(self.value_list)
 
+    def set_type(self, token):
+        self.data_type = map_type(token)
+
     def set_name(self, token):
         self.name = token.get_value()
+
+    def set_count(self, token):
+        self.count = int(token.get_value())
 
     def append_value(self, token):
         self.value_list.append(token.get_value())
         pass
 
-    def set_count(self, token):
-        self.count = int(token.get_value())
+    def append_index(self, token):
+        self.index_list.append(token.get_value())
+        pass
 
-    def set_type(self, token):
-        self.data_type = map_type(token)
-
-    def check(self):
-        print self
+    def check(self, callback):
+        # if self.data_type == TYPE_NONE:
+        #     callback('no type defined')
+        # print self
         pass
 
 
 class PvParser:
+    """
+    TODO
+    """
+
     class PvSyntaxError(Exception):
+        """
+        TODO
+        """
+
         def __init___(self, message):
             Exception.__init__(self, message)
 
     def __init__(self):
+        """
+        TODO
+        """
         self.f_in = None
         self.file_name = ''
         self.lex = PvLexer()
@@ -92,13 +110,22 @@ class PvParser:
         :raises: PvSyntaxError
         """
         # format_string = 'Syntax error at {0}\nIn file {1} at line {2}:\n>> {3}\n'
-        if text:
-            format_string = 'Syntax error at {0}, {1}\nIn file {2} at line {3}:\n>> {4}\n'
-        else:
-            format_string = 'Syntax error at {0}{1}\nIn file {2} at line {3}:\n>> {4}\n'
+        # if text:
+        #     format_string = 'Syntax error at {0}, {1}\nIn file {2} at line {3}:\n>> {4}\n'
+        # else:
+        #     format_string = 'Syntax error at {0}{1}\nIn file {2} at line {3}:\n>> {4}\n'
+        # line_number, line_text = self.lex.get_last_line()
+        # token_value = self.token.get_value()
+        # message = format_string.format(token_value, text, self.file_name, line_number, line_text)
+        # raise self.PvSyntaxError(message)
         line_number, line_text = self.lex.get_last_line()
         token_value = self.token.get_value()
-        message = format_string.format(token_value, text, self.file_name, line_number, line_text)
+        if text:
+            format_string = 'Syntax error at \'{0}\', in file {1} at line {2} -> {3}\n>> {4}'
+            message = format_string.format(token_value, self.file_name, line_number, text, line_text)
+        else:
+            format_string = 'Syntax error at \'{0}\', in file {1} at line {2}\n>> {3}'
+            message = format_string.format(token_value, self.file_name, line_number, line_text)
         raise self.PvSyntaxError(message)
 
     def pv_warning(self, text=''):
@@ -109,7 +136,8 @@ class PvParser:
         return
 
     def trace(self, text):
-        print '> ' + text, self.token
+        if DEBUG_CODE:
+            print '> ' + text, self.token
 
     def get_token(self):
         """
@@ -171,11 +199,19 @@ class PvParser:
         except IOError:
             return False
 
-        try:
-            while self.pv_item():
-                pass
-        except self.PvSyntaxError as e:
-            print e
+        # try:
+        #     while self.pv_item():
+        #         pass
+        # except self.PvSyntaxError as e:
+        #     print e
+        while True:
+            try:
+                if not self.pv_item():
+                    break
+            except self.PvSyntaxError as e:
+                print e
+                self.flush_token()
+                self.lex.flush()
 
         self.f_in.close()
         self.f_in = None
@@ -236,7 +272,7 @@ class PvParser:
                     self.flush_token()
                     return True
                 else:
-                    self.pv_error()
+                    self.pv_error()  # TODO
         else:
             return False
 
@@ -314,12 +350,14 @@ class PvParser:
         if self.get_token().match(TOKEN_SLEEP):
             token = self.flush_and_get_token()
             if token.match(TOKEN_INTEGER) or token.match(TOKEN_FLOAT):
-                if not self.flush_and_get_token().match(TOKEN_SEMICOLON):
-                    self.pv_error()
+                if self.flush_and_get_token().match(TOKEN_SEMICOLON):
+                    self.flush_token()
+                else:
+                    self.pv_error('missing \';\'')
             elif token.match(TOKEN_SEMICOLON):
                 self.flush_token()
             else:
-                self.pv_error()
+                self.pv_error('expected integer or float value')
             return True
         return False
 
@@ -338,16 +376,15 @@ class PvParser:
         """
         self.trace('pv_single')
         self.single = SingleValue()
-        print self.single
         if self.pv_single_head():
             if self.pv_single_equals():
                 if self.pv_single_body():
                     if self.get_token().match(TOKEN_SEMICOLON):
-                        self.single.check()
+                        self.single.check(self.pv_warning)
                         self.flush_token()
                         return True
                     else:
-                        self.pv_error()
+                        self.pv_error('missing \';\'')
         return False
 
     # --------------------------------------------------------
@@ -458,7 +495,8 @@ class PvParser:
         self.trace('pv_single_count')
         assert isinstance(self.single, SingleValue)
         count = self.pv_single_index_or_count()
-        self.single.set_count(PvToken(TOKEN_INTEGER, str(count)))
+        if count is not None:
+            self.single.set_count(PvToken(TOKEN_INTEGER, str(count)))
         return True
 
     # --------------------------------------------------------
@@ -509,13 +547,12 @@ class PvParser:
                 self.flush_token()
                 return True
             else:
-                self.pv_error()
+                self.pv_error('missing \']\'')
         else:
             return self.pv_single_individual_value()
 
     def pv_single_value_list(self):
         """
-        TODO: Not sure about this
         Note: single_bodyn was renamed single_value_list in this implementation
         ---
         single_value_list
@@ -525,12 +562,14 @@ class PvParser:
         ---
         """
         self.trace('pv_single_value_list')
-        self.pv_single_individual_value()
         while True:
-            if self.get_token().match(TOKEN_COMMA):
-                self.flush_token()
-                if not self.pv_single_individual_value():
+            if self.pv_single_individual_value():
+                if self.get_token().match(TOKEN_COMMA):
+                    self.flush_token()
+                else:
                     break
+            else:
+                break
         return True
 
     # --------------------------------------------------------
@@ -564,8 +603,10 @@ class PvParser:
         :raises: PvSyntaxError
         """
         self.trace('pv_single_index')
-        # TODO
-        # return self.pv_single_index_or_count()
+        assert isinstance(self.single, SingleValue)
+        index = self.pv_single_index_or_count()
+        if index is not None:
+            self.single.append_index(PvToken(TOKEN_INTEGER, str(index)))
         return True
 
     def pv_single_value(self):
@@ -590,7 +631,7 @@ class PvParser:
             self.flush_token()
             return True
         else:
-            self.pv_error()
+            self.pv_error('expected string, float or integer value')
 
     def pv_single_scale(self):
         """
@@ -625,13 +666,13 @@ class PvParser:
             if token in [TOKEN_INTEGER, TOKEN_FLOAT]:
                 self.flush_token()
             else:
-                self.pv_error()
+                self.pv_error('expected integer or float value')
         elif self.get_token().match(TOKEN_DIVIDED):
             token = self.flush_and_get_token()
             if token in [TOKEN_INTEGER, TOKEN_FLOAT, TOKEN_UNIT]:
                 self.flush_token()
             else:
-                self.pv_error()
+                self.pv_error('expected integer/float value or unit qualifier')
         else:
             token = self.get_token()
             if token in [TOKEN_INTEGER, TOKEN_FLOAT, TOKEN_UNIT]:
@@ -674,10 +715,11 @@ class PvParser:
             | /* empty */
             ;
         ---
-        :return: always true; index or count optional
+        :return: index or count optional, or None of not specified
+        :rtype: int
         :raises: PvSyntaxError
         """
-        value = 0
+        value = None
         self.trace('pv_single_index_or_count')
         if self.get_token().match(TOKEN_LEFT_BRACKET):
             token = self.flush_and_get_token()
@@ -686,9 +728,9 @@ class PvParser:
                 if self.flush_and_get_token().match(TOKEN_RIGHT_BRACKET):
                     self.flush_token()
                 else:
-                    self.pv_error()
+                    self.pv_error('missing \']\'')
             else:
-                self.pv_error()
+                self.pv_error('integer value expected')
         return value
 
 
