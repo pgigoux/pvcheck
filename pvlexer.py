@@ -2,12 +2,12 @@ import re
 from pvtoken import PvToken
 
 # Token definitions
-TOKEN_NONE = 0
+TOKEN_NONE = 0  # default, should never be returned to the parser
 TOKEN_EOF = 1
-TOKEN_WHITESPACE = 2
-TOKEN_COMMENT = 3
+TOKEN_WHITESPACE = 2  # never returned to the parser
+TOKEN_COMMENT = 3  # never returned to the parser
 # patterns
-TOKEN_NUMBER = 10
+TOKEN_NUMBER = 10  # internal use, never returned to the parser
 TOKEN_INTEGER = 11
 TOKEN_FLOAT = 12
 TOKEN_STRING = 13
@@ -127,7 +127,7 @@ class PvLexer:
                 else:
                     break  # skip the rest of the line after a comment
             else:
-                token_list.append(PvToken(TOKEN_ERROR, m.group()))
+                token_list.append(PvToken(TOKEN_ERROR, line[line_pos]))
                 break
 
         # print '-', token_list
@@ -161,6 +161,14 @@ class PvLexer:
                 self.token_list = [PvToken(TOKEN_EOF, '')]
 
         return self.token_list.pop(0)
+
+    def flush(self):
+        """
+        Throw away the list of token that are buffered to force reading a new line.
+        This routine is intended to recover from a syntax error and continue parsing.
+        :return:
+        """
+        self.token_list = []
 
 
 if __name__ == '__main__':
