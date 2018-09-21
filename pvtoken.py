@@ -22,13 +22,29 @@ class PvToken:
     #     """
     #     return True if self.id == token.id else False
 
-    def get(self):
+    # def get(self):
+    #     """
+    #     Return the token id and value
+    #     :return: token id and value
+    #     :rtype: tuple
+    #     """
+    #     return self.id, self.value
+
+    def get_id(self):
         """
-        Return the token id and value
-        :return: token id and value
-        :rtype: tuple
+        Return the token id
+        :return: token id
+        :rtype: int
         """
-        return self.id, self.value
+        return self.id
+
+    def get_value(self):
+        """
+        Return the token value
+        :return: token value
+        :rtype:
+        """
+        return str(self.value)
 
     def match(self, token_id):
         """
