@@ -152,13 +152,11 @@ class PvLexer:
                 # Look for the next non comment and non white line in the line
                 while True:
                     line = f_in.next().strip()
+                    self.line_number += 1
                     if re.search(r'^#', line) is None and len(line) > 0:
                         break
-
                 self.token_list = self._get_token_list(line)
                 self.last_line = line
-                self.line_number += 1
-
             except StopIteration:
                 self.token_list = [PvToken(TOKEN_EOF, '')]
 
