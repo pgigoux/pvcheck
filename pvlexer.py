@@ -39,9 +39,7 @@ class PvLexer:
     lexer_patterns = [
         (r'[\s]+', TOKEN_WHITESPACE),
         (r'-?0[xX][\da-fA-F]+', TOKEN_INTEGER),
-        (r'[-+]?(\d+([.,]\d*)?|[.,]\d+)([eE][-+]?\d+)?', TOKEN_NUMBER),
-        # (r'[-+]?(\d+([.,]\d*)?|[.,]\d+)([eE][-+]?\d+)?', TOKEN_REAL),
-        # (r'-?\d+', TOKEN_INTEGER),
+        (r'[-+]?(\d+([.]\d*)?|[.,]\d+)([eE][-+]?\d+)?', TOKEN_NUMBER),
         (r'".+"', TOKEN_STRING),
         (r'string|int|short|float|enum|char|long|double', TOKEN_TYPE),
         (r'arcsec|deg', TOKEN_UNIT),
