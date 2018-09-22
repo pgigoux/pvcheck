@@ -12,71 +12,72 @@ from pvlexer import TOKEN_EQUALS, TOKEN_TIMES, TOKEN_DIVIDED, TOKEN_PERCENT
 from pvlexer import TOKEN_LEFT_BRACE, TOKEN_RIGHT_BRACE, TOKEN_LEFT_BRACKET, TOKEN_RIGHT_BRACKET
 from pvlexer import TOKEN_ERROR
 
-# Pvload defines a total of eight possible types for EPICS channels,
-# but they can be grouped into three different categories.
-TYPE_NONE = 0
+# Pvload defines a total of eight possible types for EPICS channels.
+# They can be grouped into three different basic types.
+TYPE_NONE = 0  # not defined yet
 TYPE_INTEGER = 1
 TYPE_FLOAT = 2
 TYPE_STRING = 3
 
 DEBUG_CODE = False
 
-def map_type(token):
-    """
-    Map the token pvload data type string (stored in it's value) into
-    one of the possible data types. This routine is used to check
-    for compatible types in single value statements.
-    :param token:
-    :type token: PvToken
-    :return: token data type
-    :rtype: int
-    """
-    token_value = token.get_value()
-    if token_value in ['string', 'char', 'enum']:
-        return TYPE_STRING
-    elif token_value in ['short', 'int', 'long']:
-        return TYPE_INTEGER
-    elif token_value in ['float', 'double']:
-        return TYPE_FLOAT
-    else:
-        return TYPE_NONE
+
+# def map_type(token):
+#     """
+#     Map the token pvload data type string (stored in it's value) into
+#     a smaller set of (compatible) data types. This routine is used to check
+#     for compatible types in single value statements.
+#     :param token:
+#     :type token: PvToken
+#     :return: token data type
+#     :rtype: int
+#     """
+#     token_value = token.get_value()
+#     if token_value in ['string', 'char', 'enum']:
+#         return TYPE_STRING
+#     elif token_value in ['short', 'int', 'long']:
+#         return TYPE_INTEGER
+#     elif token_value in ['float', 'double']:
+#         return TYPE_FLOAT
+#     else:
+#         return TYPE_NONE
 
 
-class SingleValue:
-    def __init__(self):
-        self.data_type = TYPE_NONE
-        self.name = ''
-        self.count = 0
-        self.value_list = []
-        self.index_list = []
-        self.type_map = {TYPE_NONE: 'none', TYPE_INTEGER: 'int', TYPE_FLOAT: 'float', TYPE_STRING: 'string'}
-
-    def __str__(self):
-        return '------> ' + self.type_map[self.data_type] + ' [' + str(self.name) + '] ' + \
-               str(self.count) + ' ' + str(self.index_list) + ' ' + str(self.value_list)
-
-    def set_type(self, token):
-        self.data_type = map_type(token)
-
-    def set_name(self, token):
-        self.name = token.get_value()
-
-    def set_count(self, token):
-        self.count = int(token.get_value())
-
-    def append_value(self, token):
-        self.value_list.append(token.get_value())
-        pass
-
-    def append_index(self, token):
-        self.index_list.append(token.get_value())
-        pass
-
-    def check(self, callback):
-        # if self.data_type == TYPE_NONE:
-        #     callback('no type defined')
-        # print self
-        pass
+# class SingleValue:
+#     def __init__(self):
+#         self.data_type = TYPE_NONE
+#         self.name = ''
+#         self.count = 0
+#         self.value_list = []
+#         self.index_list = []
+#         self.type_map = {TYPE_NONE: 'none', TYPE_INTEGER: 'int', TYPE_FLOAT: 'float', TYPE_STRING: 'string'}
+#
+#     def __str__(self):
+#         return '------> ' + self.type_map[self.data_type] + ' [' + str(self.name) + '] ' + \
+#                str(self.count) + ' ' + str(self.index_list) + ' ' + str(self.value_list)
+#
+#     def set_type(self, token):
+#         self.data_type = map_type(token)
+#
+#     def set_name(self, token):
+#         self.name = token.get_value()
+#
+#     def set_count(self, token):
+#         self.count = int(token.get_value())
+#
+#     def append_value(self, token):
+#         self.value_list.append(token.get_value())
+#         pass
+#
+#     def append_index(self, token):
+#         self.index_list.append(token.get_value())
+#         pass
+#
+#     def check(self, callback):
+#         # if self.data_type == TYPE_NONE:
+#         #     callback('no type defined')
+#         # print self
+#         pass
 
 
 class PvParser:
@@ -85,10 +86,6 @@ class PvParser:
     """
 
     class PvSyntaxError(Exception):
-        """
-        TODO
-        """
-
         def __init___(self, message):
             Exception.__init__(self, message)
 
@@ -99,9 +96,102 @@ class PvParser:
         self.f_in = None
         self.file_name = ''
         self.lex = PvLexer()
-        self.token = None  # should not be used in the parser routines
-        self.single = None  # used in semantic analysis
+        self.token = None
         self.flush_token()  # clears self.token
+        # the following variables are used for simple statement checks
+        self.single_data_type = TYPE_NONE
+        self.single_name = ''
+        self.single_count = 0
+        self.single_value_list = []
+        self.single_index_list = []
+        # convenient way to map types to strings
+        self.type_map = {TYPE_NONE: 'none', TYPE_INTEGER: 'int', TYPE_FLOAT: 'float', TYPE_STRING: 'string'}
+
+    def __str__(self):
+        return 'PvParser(' + \
+               '[' + self.file_name + '] ' + \
+               str(self.token) + ' - ' + \
+               self.type_map[self.single_data_type] + ' ' + \
+               '[' + str(self.single_name) + ']' + ' ' + \
+               str(self.single_count) + ' ' + \
+               str(self.single_index_list) + ' ' + \
+               str(self.single_value_list) + \
+               ')'
+
+    def clear_single(self):
+        """
+        Clear/reset the variables used to store the latest single stament elements.
+        :return: None
+        """
+        self.single_data_type = TYPE_NONE  # data type
+        self.single_name = ''  # pv name
+        self.single_count = 1  # array size
+        self.single_value_list = []  # value list
+        self.single_index_list = []  # index list
+
+    def check_single(self):
+        """
+        Check for single statement consistency.
+        :return: None
+        """
+        # Check for array consistency
+        if self.single_count != len(self.single_value_list):
+            self.pv_warning('list of values does not match array size')
+        if len(self.single_index_list) != len(set(self.single_index_list)):
+            self.pv_warning('repeated indices')
+        if len(self.single_index_list) and (len(self.single_value_list) != len(self.single_index_list)):
+            self.pv_warning('missing indices?')
+
+        # Check for type consistency
+        if self.single_data_type == TYPE_NONE:
+            self.pv_warning('type not defined')
+        elif self.single_data_type == TYPE_INTEGER:
+            for value in self.single_value_list:
+                try:
+                    int(value)
+                except ValueError:
+                    self.pv_warning('type mismatch')
+                    break
+        elif self.single_data_type == TYPE_FLOAT:
+            for value in self.single_value_list:
+                try:
+                    float(value)
+                except ValueError:
+                    self.pv_warning('type mismatch')
+                    break
+        elif self.single_data_type == TYPE_STRING:
+            for value in self.single_value_list:
+                try:
+                    int(value)
+                    self.pv_warning('type mismatch')
+                except ValueError:
+                    pass
+                try:
+                    float(value)
+                    self.pv_warning('type mismatch')
+                except ValueError:
+                    pass
+
+    @staticmethod
+    def map_type(token):
+        """
+        Map the token pvload data type string (stored in it's value) into
+        a smaller set of (compatible) data types. This routine is used to check
+        for compatible types in single value statements.
+        :param token:
+        :type token: PvToken
+        :return: token data type
+        :rtype: int
+        """
+        token_value = token.get_value()
+        if token_value in ['string', 'char', 'enum']:
+            return TYPE_STRING
+        elif token_value in ['short', 'int', 'long']:
+            return TYPE_INTEGER
+        elif token_value in ['float', 'double']:
+            return TYPE_FLOAT
+        else:
+            return TYPE_NONE
 
     def pv_error(self, text=''):
         """
@@ -109,22 +199,13 @@ class PvParser:
         :type text: str
         :raises: PvSyntaxError
         """
-        # format_string = 'Syntax error at {0}\nIn file {1} at line {2}:\n>> {3}\n'
-        # if text:
-        #     format_string = 'Syntax error at {0}, {1}\nIn file {2} at line {3}:\n>> {4}\n'
-        # else:
-        #     format_string = 'Syntax error at {0}{1}\nIn file {2} at line {3}:\n>> {4}\n'
-        # line_number, line_text = self.lex.get_last_line()
-        # token_value = self.token.get_value()
-        # message = format_string.format(token_value, text, self.file_name, line_number, line_text)
-        # raise self.PvSyntaxError(message)
         line_number, line_text = self.lex.get_last_line()
         token_value = self.token.get_value()
         if text:
-            format_string = 'Syntax error at \'{0}\', in file {1} at line {2} -> {3}\n>> {4}'
+            format_string = 'Error: at \'{0}\', file {1}, line {2} -> {3}\n>> {4}'
             message = format_string.format(token_value, self.file_name, line_number, text, line_text)
         else:
-            format_string = 'Syntax error at \'{0}\', in file {1} at line {2}\n>> {3}'
+            format_string = 'Error: at \'{0}\', file {1}, line {2}\n>> {3}'
             message = format_string.format(token_value, self.file_name, line_number, line_text)
         raise self.PvSyntaxError(message)
 
@@ -133,6 +214,15 @@ class PvParser:
         :param text: error message
         :type text: str
         """
+        line_number, line_text = self.lex.get_last_line()
+        # token_value = self.token.get_value()
+        if text:
+            format_string = 'Warning: file {0}, line {1} -> {2}\n>> {3}'
+            message = format_string.format(self.file_name, line_number, text, line_text)
+        else:
+            format_string = 'Warning: {0}, line {1}\n>> {2}'
+            message = format_string.format(self.file_name, line_number, line_text)
+        print message
         return
 
     def trace(self, text):
@@ -199,11 +289,6 @@ class PvParser:
         except IOError:
             return False
 
-        # try:
-        #     while self.pv_item():
-        #         pass
-        # except self.PvSyntaxError as e:
-        #     print e
         while True:
             try:
                 if not self.pv_item():
@@ -211,6 +296,7 @@ class PvParser:
             except self.PvSyntaxError as e:
                 print e
                 self.flush_token()
+                self.clear_single()
                 self.lex.flush()
 
         self.f_in.close()
@@ -353,8 +439,9 @@ class PvParser:
                 if self.flush_and_get_token().match(TOKEN_SEMICOLON):
                     self.flush_token()
                 else:
-                    self.pv_error('missing \';\'')
+                    self.pv_error('expected \';\'')
             elif token.match(TOKEN_SEMICOLON):
+                self.pv_warning('no time specified in sleep')
                 self.flush_token()
             else:
                 self.pv_error('expected integer or float value')
@@ -375,16 +462,16 @@ class PvParser:
         :return:
         """
         self.trace('pv_single')
-        self.single = SingleValue()
+        self.clear_single()
         if self.pv_single_head():
             if self.pv_single_equals():
                 if self.pv_single_body():
                     if self.get_token().match(TOKEN_SEMICOLON):
-                        self.single.check(self.pv_warning)
+                        self.check_single()
                         self.flush_token()
                         return True
                     else:
-                        self.pv_error('missing \';\'')
+                        self.pv_error('expected \';\'')
         return False
 
     # --------------------------------------------------------
@@ -439,8 +526,9 @@ class PvParser:
         self.trace('pv_single_type')
         token = self.get_token()
         if token.match(TOKEN_TYPE):
-            assert isinstance(self.single, SingleValue)
-            self.single.set_type(token)
+            # assert isinstance(self.single, SingleValue)
+            # self.single.set_type(token)
+            self.single_data_type = self.map_type(token)
             self.flush_token()
         return True
 
@@ -458,27 +546,13 @@ class PvParser:
         self.trace('pv_single_name')
         token = self.get_token()
         if token.match(TOKEN_PVNAME):
-            assert isinstance(self.single, SingleValue)
-            self.single.set_name(token)
+            # assert isinstance(self.single, SingleValue)
+            # self.single.set_name(token)
+            self.single_name = token.get_value()
             self.flush_token()
             return True
         else:
             return False
-
-    # def pv_single_count(self):
-    #     """
-    #     The single statement count is used to handle arrays
-    #     ---
-    #     single_count
-    #         : TOKEN_LEFT_BRACKET TOKEN_INTEGER TOKEN_RIGHT_BRACKET
-    #         | /* empty */
-    #         ;
-    #     ---
-    #     :return: true if count detected, false otherwise
-    #     :raises: PvSyntaxError
-    #     """
-    #     self.trace('pv_single_count')
-    #     return self.pv_single_index_or_count()
 
     def pv_single_count(self):
         """
@@ -493,10 +567,12 @@ class PvParser:
         :raises: PvSyntaxError
         """
         self.trace('pv_single_count')
-        assert isinstance(self.single, SingleValue)
+        # assert isinstance(self.single, SingleValue)
+        # count = self.pv_single_index_or_count()
+        # if count is not None:
+        #     self.single.set_count(PvToken(TOKEN_INTEGER, str(count)))
         count = self.pv_single_index_or_count()
-        if count is not None:
-            self.single.set_count(PvToken(TOKEN_INTEGER, str(count)))
+        self.single_count = count if count is not None else 1
         return True
 
     # --------------------------------------------------------
@@ -529,7 +605,8 @@ class PvParser:
         The single body specifies the value to be assigned
         The implementation here deviates from the original BNF in that it does not
         allow a list of values if it's not enclosed in braces.
-        Note: single_bodyn in the original BNF was renamed as single_value_list
+        Note: The current implementation does not allow for lists not enclosed in braces;
+              the original BNF seems to allow this syntax.
         ---
         single_body
             : single_individual_value
@@ -547,7 +624,7 @@ class PvParser:
                 self.flush_token()
                 return True
             else:
-                self.pv_error('missing \']\'')
+                self.pv_error('expected \'}\'')
         else:
             return self.pv_single_individual_value()
 
@@ -603,10 +680,13 @@ class PvParser:
         :raises: PvSyntaxError
         """
         self.trace('pv_single_index')
-        assert isinstance(self.single, SingleValue)
+        # assert isinstance(self.single, SingleValue)
+        # index = self.pv_single_index_or_count()
+        # if index is not None:
+        #     self.single.append_index(PvToken(TOKEN_INTEGER, str(index)))
         index = self.pv_single_index_or_count()
         if index is not None:
-            self.single.append_index(PvToken(TOKEN_INTEGER, str(index)))
+            self.single_index_list.append(index)
         return True
 
     def pv_single_value(self):
@@ -626,8 +706,9 @@ class PvParser:
         self.trace('pv_single_value')
         token = self.get_token()
         if token.is_in([TOKEN_INTEGER, TOKEN_FLOAT, TOKEN_STRING]):
-            assert isinstance(self.single, SingleValue)
-            self.single.append_value(token)
+            # assert isinstance(self.single, SingleValue)
+            # self.single.append_value(token)
+            self.single_value_list.append(token.get_value())
             self.flush_token()
             return True
         else:
@@ -679,33 +760,6 @@ class PvParser:
                 self.flush_token()
         return True
 
-    # def pv_single_index_or_count(self):
-    #     """
-    #     An item is either a group, a single item or a sleep declaration
-    #     ---
-    #     single_index_or_count
-    #         : TOKEN_LEFT_BRACKET TOKEN_INTEGER TOKEN_RIGHT_BRACKET
-    #         | /* empty */
-    #         ;
-    #     ---
-    #     :return: always true; index or count optional
-    #     :raises: PvSyntaxError
-    #     """
-    #     self.trace('pv_single_index_or_count')
-    #     if self.get_token().match(TOKEN_LEFT_BRACKET):
-    #         token = self.flush_and_get_token()
-    #         if token.match(TOKEN_INTEGER):
-    #             assert isinstance(self.single, SingleValue)
-    #             self.single.set_count(token)
-    #             if self.flush_and_get_token().match(TOKEN_RIGHT_BRACKET):
-    #                 self.flush_token()
-    #                 return True  # index found
-    #             else:
-    #                 self.pv_error()
-    #         else:
-    #             self.pv_error()
-    #     return True  # index not found, ok anyway
-
     def pv_single_index_or_count(self):
         """
         An item is either a group, a single item or a sleep declaration
@@ -724,11 +778,11 @@ class PvParser:
         if self.get_token().match(TOKEN_LEFT_BRACKET):
             token = self.flush_and_get_token()
             if token.match(TOKEN_INTEGER):
-                value = token.get_value()
+                value = int(token.get_value())
                 if self.flush_and_get_token().match(TOKEN_RIGHT_BRACKET):
                     self.flush_token()
                 else:
-                    self.pv_error('missing \']\'')
+                    self.pv_error('expected \']\'')
             else:
                 self.pv_error('integer value expected')
         return value
