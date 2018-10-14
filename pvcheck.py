@@ -3,7 +3,6 @@ import sys
 from argparse import ArgumentParser, SUPPRESS
 from pvparser import PvParser
 
-
 if __name__ == '__main__':
     """
     Entry point for the pvload file check program.
@@ -18,7 +17,12 @@ if __name__ == '__main__':
                         default=[],
                         help='list of input files')
 
-    parser.add_argument('-d',
+    parser.add_argument('-v', '--verbose',
+                        action='store_true',
+                        dest='verbose',
+                        default=False)
+
+    parser.add_argument('-d', '--debug',
                         action='store_true',
                         dest='debug',
                         default=False,
@@ -26,8 +30,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args(sys.argv[1:])
 
-    pv_parser = PvParser()
-    pv_parser.set_debug(args.debug)
+    pv_parser = PvParser(args.debug, args.verbose)
+    # pv_parser.set_debug(args.debug)
 
     for file_name in args.file_list:
         pv_parser.pv_file(file_name)
