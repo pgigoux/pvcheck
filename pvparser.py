@@ -1,3 +1,150 @@
+"""
+Recursive descent parser to check for the syntax and some semantic errors in
+the EPICS pvload/pvsave files. The BNF was adapted (with some differences) from
+the original implementation by W. Lupton.
+
+/* A file is a list of items. Empty files are allowed. */
+file
+    : file item
+    | item
+    | /* empty */
+    ;
+
+/* An item can be a group statement, an single statement or a sleep statement */
+item
+    : group
+    | single
+    | sleep
+    ;
+
+/* A group statement is a grouped list of single items */
+group: group_head TOKEN_LEFT_BRACE group_body TOKEN_RIGHT_BRACE group_tail
+    ;
+
+/* The group head starts with the token 'group'.
+   If no head is found, then no group is present.
+*/
+group_head
+    :	TOKEN_GROUP
+    ;
+
+/* The group body is a list on single statements */
+group_body
+    : group_body single
+    | single
+    | /* empty */
+    ;
+
+/* The group tail is an optional semicolon */
+group_tail
+    :	TOKEN_SEMICOLON
+    |	/* empty */
+
+/* A sleep statement starts with the token 'sleep'.
+   if no 'sleep' token is found, then no sleep statement is present.
+   The time to sleep is optional.
+ */
+sleep
+    : TOKEN_SLEEP TOKEN_SEMICOLON
+    | TOKEN_SLEEP TOKEN_INTEGER TOKEN_SEMICOLON
+    | TOKEN_SLEEP TOKEN_DOUBLE TOKEN_SEMICOLON
+    ;
+
+/* A single statement is a C like declaration and assignment */
+single
+    : single_head single_equals single_body TOKEN_SEMICOLON
+
+/* The single head contains all the elements before the equal sign */
+single_head
+    :	single_start single_type single_name single_count
+    ;
+
+/* The single start is the optional percent ('%') token */
+single_start
+    : /* empty */
+    | TOKEN_PERCENT
+    ;
+
+/* The single type is any of the (optional) type declarations. */
+single_type
+    :	TOKEN_TYPE
+    |	/* empty */
+    ;
+
+/* The single name must be a valid process variable name
+single_name
+    :	tokenPVNAME
+    ;
+
+/* The (optional) single count is used to define arrays */
+single_count
+    : TOKEN_LEFT_BRACKET TOKEN_INTEGER TOKEN_RIGHT_BRACKET
+    | /* empty */
+    ;
+
+/* The single equals must be the token '=' */
+single_equals
+    : TOKEN_EQUALS
+
+/* The single body specifies the value to be assigned. This implementation differs from the
+   original pvload BNF in that it does not allow a list of values not enclosed in braces.
+ */
+single_body
+    : single_individual_value
+    | TOKEN_LEFT_BRACE single_body_value_list TOKEN_RIGHT_BRACE
+    ;
+
+/* The single value list is a list of single individual values separated by commas */
+single_value_list
+    : single_individual_value
+    | single_value_list TOKEN_COMMA single_individual_value
+    ;
+
+/* A single individual value has an index, followed by a value and scale */
+single_individual_value
+    : single_index single_value single_scale
+    ;
+
+/* The single index is an integer an (optional) number enclosed in square brackets */
+single_index
+    : TOKEN_LEFT_BRACKET TOKEN_INTEGER TOKEN_RIGHT_BRACKET
+    | /* empty */
+    ;
+
+/* The single value must be either an integer, real or string.
+single_value
+    :	tokenINTEGER
+    |	tokenREAL
+    |	tokenSTRING
+    ;
+
+/* The single scale can be a scaling factor, or any of the accepted scaling units */
+single_scale
+    : TOKEN_TIMES TOKEN_INTEGER
+    | TOKEN_TIMES TOKEN_REAL
+    | TOKEN_DIVIDED TOKEN_INTEGER
+    | TOKEN_DIVIDED TOKEN_REAL
+    | TOKEN_INTEGER
+    | TOKEN_REAL
+    | TOKEN_DIVIDED TOKEN_ARCSECS
+    | TOKEN_ARCSECS
+    | TOKEN_DIVIDED TOKEN_DEGREES
+    | TOKEN_DEGREES
+    | TOKEN_DIVIDED TOKEN_UM
+    | TOKEN_UM
+    | TOKEN_DIVIDED TOKEN_MM
+    | TOKEN_MM
+    | TOKEN_DIVIDED TOKEN_M
+    | TOKEN_M
+    | /* empty */
+    ;
+
+/* An index of array count is an integer number enclosed in square brackets */
+single_index_or_count
+    : TOKEN_LEFT_BRACKET TOKEN_INTEGER TOKEN_RIGHT_BRACKET
+    | /* empty */
+    ;
+"""
 from pvtoken import PvToken
 from pvlexer import PvLexer
 
@@ -11,38 +158,39 @@ from pvlexer import TOKEN_ERROR
 
 # Pvload defines a total of eight possible types for EPICS channels.
 # They can be grouped into three different basic types.
-TYPE_NONE = 0  # not defined yet
+TYPE_NONE = 0  # not defined yet (internal use)
 TYPE_INTEGER = 1
 TYPE_FLOAT = 2
 TYPE_STRING = 3
 
 
 class PvParser:
-    """
-    TODO
-    """
-
     class PvSyntaxError(Exception):
         def __init___(self, message):
             Exception.__init__(self, message)
 
-    def __init__(self):
-        """
-        TODO
-        """
+    def __init__(self, debug=False, verbose=False):
         self.f_in = None
         self.file_name = ''
         self.lex = PvLexer()
         self.token = None
-        self.debug = False
-        self.flush_token()  # clears self.token
+
+        # output control
+        self.debug = debug
+        self.verbose = verbose
+
         # the following variables are used for simple statement checks
         self.single_data_type = TYPE_NONE
         self.single_name = ''
         self.single_count = 0
         self.single_value_list = []
         self.single_index_list = []
-        # handy way to map types to a string representation
+
+        # initialize state
+        self.flush_token()
+        self.clear_single()
+
+        # dictionary to map types to a string representation
         self.type_map = {TYPE_NONE: 'none', TYPE_INTEGER: 'int', TYPE_FLOAT: 'float', TYPE_STRING: 'string'}
 
     def __str__(self):
@@ -58,7 +206,7 @@ class PvParser:
 
     def clear_single(self):
         """
-        Clear/reset the variables used to store the latest single stament elements.
+        Clear/reset the variables used to store the single statement elements.
         :return: None
         """
         self.single_data_type = TYPE_NONE  # data type
@@ -133,6 +281,9 @@ class PvParser:
 
     def pv_error(self, text=''):
         """
+        Print an error message. Used to report syntax errors in the pvload file.
+        It generates an exception. It is up to the caller to decide whether to
+        abort of try to recover from it.
         :param text: error message
         :type text: str
         :raises: PvSyntaxError
@@ -149,6 +300,7 @@ class PvParser:
 
     def pv_warning(self, text=''):
         """
+        Print a warning message. Used to report minor inconsistencies in the pvload file.
         :param text: error message
         :type text: str
         """
@@ -163,17 +315,23 @@ class PvParser:
         return
 
     def trace(self, text):
+        """
+        Routine used to print a lot of details about the program execution.
+        Used extensively during the implementation and testing of the parser.
+        Trace is enabled at run time by the --debug option.
+        :param text: text to print
+        :return: None
+        """
         if self.debug:
             print '> ' + text, self.token
-
-    def set_debug(self, debug):
-        self.debug = debug
 
     def get_token(self):
         """
         This routine is a front end to the lexer next_token() function.
-        It simulates a push back functionality when the token is not consumed.
-        Lexer errors (i.e. unknown tokens) are trapped at this point.
+        The parser always keeps the latest token read and only gets rid of it
+        when it has been consumed by the parser. This is equivalent to having
+        a push back or look ahead functionality in the lexer.
+        Errors returned by the lexer are trapped here.
         :return: next token
         :rtype: PvToken
         """
@@ -186,12 +344,17 @@ class PvParser:
         return self.token
 
     def flush_token(self):
+        """
+        Clear the latest token read (marked it as consumed). This will force get_token()
+        to read a new token from the lexer the next time is called.
+        :return:
+        """
         self.trace('flush_token')
         self.token = PvToken(TOKEN_NONE, 'none')
 
     def flush_and_get_token(self):
         """
-        Convenient shortcut
+        Handy way of to calling flush_token() and get_token() in one call.
         :return: next token
         :rtype: PvToken
         """
@@ -209,7 +372,7 @@ class PvParser:
 
     def pv_file(self, input_file_name):
         """
-        A file is a list of items
+        A file is a list of items. Files can be empty.
         ---
         file
             : file item
@@ -228,6 +391,9 @@ class PvParser:
             self.file_name = input_file_name
         except IOError:
             return False
+
+        if self.verbose:
+            print self.file_name
 
         while True:
             try:
@@ -251,7 +417,7 @@ class PvParser:
 
     def pv_item(self):
         """
-        An item is either a group, a single item or a sleep declaration
+        An item is a group stamenet, a single statement or a sleep statement.
         ---
         item
             : group
@@ -280,7 +446,7 @@ class PvParser:
 
     def pv_group(self):
         """
-        A group is a grouped list of single items
+        A group is a grouped list of single statements
         ---
         group: group_head TOKEN_LEFT_BRACE group_body TOKEN_RIGHT_BRACE group_tail
             ;
@@ -298,7 +464,7 @@ class PvParser:
                     self.flush_token()
                     return True
                 else:
-                    self.pv_error()  # TODO
+                    self.pv_error()
         else:
             return False
 
@@ -318,12 +484,11 @@ class PvParser:
             self.flush_token()
             return True
         else:
-            return False
+            return False  # no group found
 
     def pv_group_body(self):
         """
-        TODO: not sure about this
-        The group body is a list on single statements
+        The group body is a list on single statements. A group can be empty.
         ---
         group_body
         : group_body single
@@ -394,7 +559,7 @@ class PvParser:
 
     def pv_single(self):
         """
-        A single item is a C like declaration and assignment
+        A single statement is a C like declaration and assignment
         ---
         single
             : single_head single_equals single_body TOKEN_SEMICOLON
@@ -420,7 +585,6 @@ class PvParser:
 
     def pv_single_head(self):
         """
-        TODO
         The single statement head contains all the elements before the equal sign
         ---
         single_head
@@ -453,7 +617,7 @@ class PvParser:
 
     def pv_single_type(self):
         """
-        The single type is any of the optional type declarations.
+        The single statement type is any of the optional type declarations.
         ---
         single_type
             :	TOKEN_TYPE
@@ -472,7 +636,7 @@ class PvParser:
 
     def pv_single_name(self):
         """
-        The single state name must be a valid pv name
+        The single statement name must be a valid pv name
         ---
         single_name
             :	tokenPVNAME
@@ -492,7 +656,7 @@ class PvParser:
 
     def pv_single_count(self):
         """
-        The single statement count is used to handle arrays
+        The single statement count is used to define arrays.
         ---
         single_count
             : TOKEN_LEFT_BRACKET TOKEN_INTEGER TOKEN_RIGHT_BRACKET
@@ -534,11 +698,9 @@ class PvParser:
 
     def pv_single_body(self):
         """
-        The single body specifies the value to be assigned
+        The single statement body specifies the value to be assigned
         The implementation here deviates from the original BNF in that it does not
         allow a list of values if it's not enclosed in braces.
-        Note: The current implementation does not allow for lists not enclosed in braces;
-              the original BNF seems to allow this syntax.
         ---
         single_body
             : single_individual_value
@@ -562,7 +724,7 @@ class PvParser:
 
     def pv_single_value_list(self):
         """
-        Note: single_bodyn was renamed single_value_list in this implementation
+        A single statement value list is a list of values delimited by commas.
         ---
         single_value_list
             : single_individual_value
@@ -587,7 +749,8 @@ class PvParser:
 
     def pv_single_individual_value(self):
         """
-
+        A single statement individual value consists of an index
+        a single value and a scale.
         ---
         single_individual_value
             : single_index single_value single_scale
@@ -602,6 +765,7 @@ class PvParser:
 
     def pv_single_index(self):
         """
+        A single statement index is an integer number in square brackets.
         ---
         single_index
             : TOKEN_LEFT_BRACKET TOKEN_INTEGER TOKEN_RIGHT_BRACKET
@@ -619,7 +783,7 @@ class PvParser:
 
     def pv_single_value(self):
         """
-        The single value must be either an integer, real or string.
+        The single statement value must be either an integer, real or string.
         ---
         single_value
             :	tokenINTEGER
@@ -642,6 +806,8 @@ class PvParser:
 
     def pv_single_scale(self):
         """
+        A single statement scale can be a integer or floating point factor,
+        or any of the predefined scaling units.
         ---
         single_scale
             : TOKEN_TIMES TOKEN_INTEGER
@@ -688,7 +854,8 @@ class PvParser:
 
     def pv_single_index_or_count(self):
         """
-        An item is either a group, a single item or a sleep declaration
+        This an common routine used to parse both an index or an array count.
+        Both are enclosed in square brackets so it made sense to have a single routine.
         ---
         single_index_or_count
             : TOKEN_LEFT_BRACKET TOKEN_INTEGER TOKEN_RIGHT_BRACKET
